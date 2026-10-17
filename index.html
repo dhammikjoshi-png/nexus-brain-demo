@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEXUS Brain Demo</title>
+<meta name="description" content="A tiny Transformer from the NEXUS research project, running entirely in your browser.">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #14181f; --muted: #5b6573; --line: #dfe3ea;
+    --accent: #2f6df6; --accent-ink: #ffffff; --ok: #1a8f4c; --bad: #c8321f; --warn-bg: #fff6e0; --warn-line: #f0d48a;
+    --code-bg: #f0f2f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1116; --card: #161b22; --text: #e6eaf0; --muted: #94a0b0; --line: #2a313c;
+      --accent: #5b8cff; --accent-ink: #0b1020; --ok: #4cc77c; --bad: #ff7a66; --warn-bg: #2a2412; --warn-line: #5c4c1c;
+      --code-bg: #0f141b;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116; --card: #161b22; --text: #e6eaf0; --muted: #94a0b0; --line: #2a313c;
+    --accent: #5b8cff; --accent-ink: #0b1020; --ok: #4cc77c; --bad: #ff7a66; --warn-bg: #2a2412; --warn-line: #5c4c1c;
+    --code-bg: #0f141b;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { padding: 8px 0 4px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.15rem; margin: 0 0 8px; }
+  p { margin: 0 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .note {
+    background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 12px;
+    padding: 12px 14px; margin: 14px 0 18px; font-size: 0.95rem;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin: 0 0 16px;
+  }
+  label { display: block; font-weight: 600; font-size: 0.9rem; margin: 12px 0 6px; }
+  textarea, input[type="text"], select {
+    width: 100%; font: 15px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg); color: var(--text); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  select { font-family: inherit; }
+  textarea { min-height: 112px; resize: vertical; white-space: pre; overflow-x: auto; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .row > div { flex: 1 1 140px; }
+  input[type="range"] { width: 100%; }
+  button {
+    font: inherit; font-weight: 600; min-height: 44px; padding: 0 16px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+  .chip { min-height: 38px; font-weight: 500; font-size: 0.9rem; padding: 0 12px; }
+  .out {
+    font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; min-height: 56px; white-space: pre-wrap; word-break: break-all; margin-top: 12px;
+  }
+  .out .p { color: var(--muted); }
+  .out .g { cursor: pointer; border-radius: 3px; }
+  .out .g.sel { outline: 2px solid var(--accent); }
+  .out .ok { background: color-mix(in srgb, var(--ok) 28%, transparent); }
+  .out .no { background: color-mix(in srgb, var(--bad) 30%, transparent); }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-top: 8px; min-height: 1.3em; }
+  .verdict { font-weight: 700; margin-top: 10px; }
+  .verdict.ok { color: var(--ok); } .verdict.no { color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; width: 38%; }
+  ul { margin: 6px 0 10px; padding-left: 20px; }
+  li { margin: 4px 0; }
+  .foot { color: var(--muted); font-size: 0.85rem; text-align: center; margin-top: 22px; }
+  .foot a { color: var(--accent); }
+  .err { color: var(--bad); font-weight: 600; }
+  .themebtn { float: right; min-height: 36px; font-size: 0.85rem; padding: 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <button class="themebtn" id="themeBtn" type="button" aria-label="Toggle light or dark theme">Theme</button>
+    <h1>NEXUS Brain Demo</h1>
+    <p class="sub">A tiny Transformer from the NEXUS research project, running entirely in your browser.</p>
+  </header>
+
+  <div class="note">
+    <strong>What this is, and isn't.</strong> It's a ~31,000-parameter research model (2 layers, 32 dimensions, character-level).
+    It is <em>not</em> the NEXUS coding agent and it won't write real programs. Nothing is sent anywhere:
+    the weights load from this site and every token is computed on your device.
+  </div>
+
+  <section class="card" id="genCard">
+    <h2>1. Generate</h2>
+    <p class="sub">The model continues your text one character at a time. Tap a character in the output to see its top 3 candidates.</p>
+    <label for="modelSel">Model</label>
+    <select id="modelSel">
+      <option value="code_model">Code model (1000 distinct identifiers, 32,000 steps)</option>
+      <option value="copy_model">Copy model (identifier-copy task, 8,000 steps)</option>
+    </select>
+    <label for="prompt">Prompt</label>
+    <textarea id="prompt" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">def add(zz, qq):
+    </textarea>
+    <div class="chips" id="examples"></div>
+    <div class="row">
+      <div>
+        <label for="temp">Temperature: <span id="tempVal">0.0</span> <span class="sub">(0 = greedy)</span></label>
+        <input type="range" id="temp" min="0" max="1.5" step="0.1" value="0">
+      </div>
+      <div>
+        <label for="maxTok">Max characters: <span id="maxTokVal">40</span></label>
+        <input type="range" id="maxTok" min="1" max="80" step="1" value="40">
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <button class="primary" id="genBtn" type="button" disabled>Loading model…</button>
+    </div>
+    <div class="out" id="genOut" aria-live="polite"></div>
+    <div class="meta" id="genMeta"></div>
+  </section>
+
+  <section class="card" id="copyCard">
+    <h2>2. Can it copy a name?</h2>
+    <p class="sub">
+      The copy model sees <code>def f(NAME):</code> then <code>return </code> and must repeat NAME.
+      It was trained only on names built from the letters <b>a to t</b>. Try letters it has seen and letters it hasn't.
+    </p>
+    <label for="ident">Name to copy</label>
+    <input type="text" id="ident" value="hello" maxlength="12" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off">
+    <div class="chips" id="copyExamples"></div>
+    <div style="margin-top:12px"><button class="primary" id="copyBtn" type="button" disabled>Loading model…</button></div>
+    <div class="out" id="copyOut" aria-live="polite"></div>
+    <div class="verdict" id="copyVerdict"></div>
+    <div class="meta" id="copyMeta"></div>
+  </section>
+
+  <section class="card">
+    <h2>3. What the experiments found</h2>
+    <p class="sub">Summary of Experiments 1 to 4 on this model family. Each result below is a single-model behaviour, not a general claim about large models.</p>
+    <ul>
+      <li><b>Few identifiers means memorising.</b> With about 31 distinct identifiers in training, the model memorises them instead of learning to copy.</li>
+      <li><b>More variety helps.</b> With 1,000 distinct identifiers it copies about 82% of new strings made from familiar letters.</li>
+      <li><b>Unseen characters are never copied.</b> It does not copy a character it never saw in training.</li>
+      <li><b>Copying is positional.</b> It depends on how far the name is from the copy point, not on the function name.</li>
+      <li><b>More training steps are not a fix.</b> On the code task, longer training did not reliably improve generalisation, and the variation between random seeds was large.</li>
+    </ul>
+    <p class="sub">The two models here are single runs (seed 1) from Experiment 4, so section 2 shows one model's behaviour, not an average over seeds.</p>
+  </section>
+
+  <section class="card">
+    <h2>Model details</h2>
+    <table id="detail"><tbody></tbody></table>
+  </section>
+
+  <div class="foot">
+    NEXUS research project &middot;
+    <a href="https://github.com/dhammikjoshi-png/Nexus-AI">source on GitHub</a>
+  </div>
+</div>
+
+<script src="nexus-model.js"></script>
+<script>
+(function () {
+  "use strict";
+  var NM = window.NexusModel;
+  var models = {};
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return s.replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); }
+  function vis(ch) { return ch === "\n" ? "↵\n" : ch === "\t" ? "→" : ch; }
+
+  /* theme toggle (remembered per browser when storage is available) */
+  try {
+    var saved = localStorage.getItem("nexus-theme");
+    if (saved) document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+  $("themeBtn").addEventListener("click", function () {
+    var cur = document.documentElement.getAttribute("data-theme");
+    var dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var next = dark ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("nexus-theme", next); } catch (e) {}
+  });
+
+  var EXAMPLES = {
+    code_model: [
+      ["add(zz, qq)", "def add(zz, qq):\n    "],
+      ["total(zz, qq)", "def total(zz, qq):\n    "],
+      ["merge2(xx, yy)", "def merge2(xx, yy):\n    "],
+      ["combine(k3, m9)", "def combine(k3, m9):\n  "]
+    ],
+    copy_model: [
+      ["copy abc", "def f(abc):\n    return "],
+      ["copy hello", "def g(hello):\n    return "]
+    ]
+  };
+
+  function renderExamples() {
+    var box = $("examples"); box.innerHTML = "";
+    (EXAMPLES[$("modelSel").value] || []).forEach(function (ex) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = ex[0];
+      b.addEventListener("click", function () { $("prompt").value = ex[1]; });
+      box.appendChild(b);
+    });
+  }
+
+  var COPY_EXAMPLES = [
+    ["hello (seen letters)", "hello"], ["tonight (seen letters)", "tonight"],
+    ["zebra (z unseen)", "zebra"], ["xyz (all unseen)", "xyz"], ["uvw (all unseen)", "uvw"]
+  ];
+  (function () {
+    var box = $("copyExamples");
+    COPY_EXAMPLES.forEach(function (ex) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = ex[0];
+      b.addEventListener("click", function () { $("ident").value = ex[1]; runCopy(); });
+      box.appendChild(b);
+    });
+  })();
+
+  $("temp").addEventListener("input", function () { $("tempVal").textContent = Number(this.value).toFixed(1); });
+  $("maxTok").addEventListener("input", function () { $("maxTokVal").textContent = this.value; });
+  $("modelSel").addEventListener("change", function () {
+    renderExamples();
+    var m = models[$("modelSel").value];
+    if (m) $("prompt").value = (EXAMPLES[$("modelSel").value][0] || ["", ""])[1];
+  });
+
+  /* ---- generation ---- */
+  var lastSteps = [];
+  function runGenerate() {
+    var m = models[$("modelSel").value];
+    if (!m) return;
+    var prompt = $("prompt").value;
+    var t0 = performance.now();
+    var res;
+    try {
+      res = m.generate(prompt, { maxTokens: +$("maxTok").value, temperature: +$("temp").value, seed: (Math.random() * 1e9) | 0 });
+    } catch (e) {
+      $("genOut").innerHTML = '<span class="err">' + esc(String(e.message || e)) + "</span>";
+      return;
+    }
+    var ms = performance.now() - t0;
+    lastSteps = res.steps;
+    var out = $("genOut");
+    out.innerHTML = '<span class="p">' + esc(prompt).replace(/\t/g, "→") + "</span>";
+    res.steps.forEach(function (s, i) {
+      var sp = document.createElement("span");
+      sp.className = "g"; sp.dataset.i = i;
+      sp.style.background = "color-mix(in srgb, var(--accent) " + Math.round(8 + s.p * 52) + "%, transparent)";
+      sp.textContent = s.ch === "" ? "·" : vis(s.ch);
+      out.appendChild(sp);
+    });
+    $("genMeta").textContent = res.steps.length + " characters in " + ms.toFixed(0) +
+      " ms · stopped: " + res.finish_reason + " · darker = more confident. Tap a character for its top 3.";
+  }
+  $("genOut").addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t.classList || !t.classList.contains("g")) return;
+    var prev = $("genOut").querySelector(".g.sel"); if (prev) prev.classList.remove("sel");
+    t.classList.add("sel");
+    var s = lastSteps[+t.dataset.i];
+    $("genMeta").textContent = "Character " + (s.index + 1) + ": " +
+      s.top.map(function (c) { return JSON.stringify(c.ch) + " " + (c.p * 100).toFixed(0) + "%"; }).join("  ·  ");
+  });
+  $("genBtn").addEventListener("click", runGenerate);
+
+  /* ---- copy test ---- */
+  function runCopy() {
+    var m = models.copy_model;
+    if (!m) return;
+    var id = $("ident").value.replace(/[^\x20-\x7e]/g, "").trim();
+    if (!id) { $("copyVerdict").textContent = ""; $("copyOut").textContent = "Type a name first."; return; }
+    var prompt = "def f(" + id + "):\n    return ";
+    var res;
+    try { res = m.generate(prompt, { maxTokens: id.length + 1, temperature: 0 }); }
+    catch (e) { $("copyOut").innerHTML = '<span class="err">' + esc(String(e.message || e)) + "</span>"; return; }
+    var gen = res.text, expected = id + "\n", out = $("copyOut");
+    out.innerHTML = "";
+    for (var i = 0; i < expected.length; i++) {
+      var sp = document.createElement("span");
+      var g = gen[i] === undefined ? "·" : gen[i];
+      sp.className = gen[i] === expected[i] ? "ok" : "no";
+      sp.textContent = vis(g);
+      out.appendChild(sp);
+    }
+    var exact = gen === expected;
+    var v = $("copyVerdict");
+    v.className = "verdict " + (exact ? "ok" : "no");
+    v.textContent = exact ? "Copied exactly." : "Did not copy it.";
+    var trained = "abcdefghijklmnopqrst";
+    var unseen = Array.from(new Set(id.split("").filter(function (c) { return trained.indexOf(c) < 0; })));
+    $("copyMeta").textContent = "Wanted " + JSON.stringify(expected) + ", got " + JSON.stringify(gen) + ". " +
+      (unseen.length ? "Letters outside a–t: " + unseen.join(", ") + "." : "All letters are within a–t.");
+  }
+  $("copyBtn").addEventListener("click", runCopy);
+  $("ident").addEventListener("keydown", function (e) { if (e.key === "Enter") runCopy(); });
+
+  /* ---- model details ---- */
+  var DESC = {
+    code_model: "Trained on 1000 distinct identifiers for 32,000 steps (Experiment 4, seed 1)",
+    copy_model: "Trained on the identifier-copy task for 8,000 steps (Experiment 4, seed 1)"
+  };
+  function fillDetails() {
+    var tb = $("detail").querySelector("tbody"); tb.innerHTML = "";
+    ["code_model", "copy_model"].forEach(function (k) {
+      var m = models[k]; if (!m) return;
+      var p = m.meta, c = p.config;
+      var row = document.createElement("tr");
+      row.innerHTML = "<th>" + esc(p.label) + "</th><td>" + esc(DESC[k]) + "<br>" +
+        p.param_count.toLocaleString() + " parameters &middot; " + c.n_layers + " layers &middot; " +
+        c.d_model + " dimensions &middot; " + c.n_heads + " heads &middot; context " + c.context_length + " characters</td>";
+      tb.appendChild(row);
+    });
+  }
+
+  /* ---- load ---- */
+  renderExamples();
+  var pending = 2;
+  function done() {
+    if (--pending > 0) return;
+    fillDetails();
+    $("genBtn").disabled = false; $("genBtn").textContent = "Generate";
+    $("copyBtn").disabled = !models.copy_model; $("copyBtn").textContent = "Copy test";
+    if (!models.code_model || !models.copy_model) {
+      $("genMeta").innerHTML = '<span class="err">A model failed to load. Reload the page.</span>';
+    }
+  }
+  ["code_model", "copy_model"].forEach(function (name) {
+    fetch("models/" + name + ".json")
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (payload) { models[name] = NM.Model.fromPayload(payload); })
+      .catch(function (e) { console.error(name, e); })
+      .then(done);
+  });
+})();
+</script>
+</body>
+</html>
